@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -18,8 +18,19 @@ class User(db.Model):
 
 # Home page
 @app.route('/')
+def homePage():
+    return render_template('login.html')
+
+@app.route('/home')
 def home():
-    return render_template('index.html')
+    # Check if the user is logged in by checking the session
+    if 'username' in session:
+        return render_template('home.html', username=session['username'])
+    else:
+        # If not logged in, redirect to login page
+        flash('You must be logged in to access this page.', 'error')
+        return redirect(url_for('login'))
+
 
 # Register route
 @app.route('/register', methods=['GET', 'POST'])
@@ -48,18 +59,31 @@ def register():
     return render_template('register.html')
 
 # Login route
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    username = request.form['username']
-    password = request.form['password']
-    user = User.query.filter_by(username=username).first()
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
 
-    if user and check_password_hash(user.password, password):
-        flash('Login successful!')
-        return redirect(url_for('home'))
-    else:
-        flash('Invalid username or password.')
-        return redirect(url_for('home'))
+        # Find the user in the database
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
+            session['username'] = username
+            flash('Login successful!', 'success')
+            return redirect(url_for('home'))  # Redirect to the home page after login
+        else:
+            flash('Invalid username or password.', 'error')
+            return redirect(url_for('login'))
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('login'))
+
+
 
 if __name__ == '__main__':
     with app.app_context():
